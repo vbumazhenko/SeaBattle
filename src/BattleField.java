@@ -1,4 +1,7 @@
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 
 public class BattleField {
 
@@ -7,14 +10,18 @@ public class BattleField {
 
     // Для хранения количества оставшихся кораблей
     // Индекс 0: 4-палубный, индекс 1: 3-х палубный ...
-    private final int[] ships;
+    private final int[] countShips;
+
+    // Список кораблей на поле
+    private final List<Ship> ships;
 
     public BattleField() {
         field = new Unit[10][10];
         for (Unit[] unitLine : field) {
             Arrays.fill(unitLine, Unit.EMPTY);
         }
-        ships = new int[4];
+        countShips = new int[4];
+        ships = new ArrayList<>();
     }
 
     public Unit[][] getField() {
@@ -23,7 +30,7 @@ public class BattleField {
 
     // Возвращает количество оставшихся N-палубных кораблей
     public int getCountShip(int deck) {
-        return ships[ships.length - deck];
+        return countShips[countShips.length - deck];
     }
 
     // Добавляет N-палубный корабль с переданными координатами, проверяя его валидность
@@ -36,14 +43,14 @@ public class BattleField {
             return;
         }
 
-        Point[] points = new Point[deck];
-        for (int i = 0; i < decks.length; i++) {
-            if (!decks[i].matches("[0-9],[0-9]")) {
+        List<int[]> points = new ArrayList<>();
+        for (String d : decks) {
+            if (!d.matches("[0-9],[0-9]")) {
                 System.out.println(errorFormat);
                 return;
             }
-            String[] xy = decks[i].split(",");
-            points[i] = new Point(Integer.parseInt(xy[0]), Integer.parseInt(xy[1]));
+            String[] xy = d.split(",");
+            points.add(new int[]{Integer.parseInt(xy[0]), Integer.parseInt(xy[1])});
         }
 
         if (!isValidShip(points)) {
@@ -52,16 +59,21 @@ public class BattleField {
         }
 
         // Все проверки пройдены, можно размещать судно на поле
-        for (Point point : points) {
-            setUnit(Unit.SHIP, point.getX(), point.getY());
-            setOreol(point.getX(), point.getY());
+        for (int[] point : points) {
+            setUnit(Unit.SHIP, point[0], point[1]);
         }
 
-        ships[ships.length - deck]++;
+        // Добавление сформированного судна в список кораблей игрового поля
+        Ship ship = new Ship(deck);
+        ship.addPoints(points);
+        ships.add(ship);
+        setOreol(ship, Unit.OREOL);
+
+        countShips[countShips.length - deck]++;
     }
 
     // Возвращает true, если корабль можно разместить по заданному набору координат
-    private boolean isValidShip(Point[] points) {
+    private boolean isValidShip(List<int[]> points) {
 
         // Проверка формы и целостности корабля
         if (!isValidShape(points)) {
@@ -69,8 +81,8 @@ public class BattleField {
         }
 
         // Проверка пересечения кораблей на поле
-        for (Point point : points) {
-            if (getUnit(point.getX(), point.getY()) != Unit.EMPTY) {
+        for (int[] point : points) {
+            if (getUnit(point[0], point[1]) != Unit.EMPTY) {
                 return false;
             }
         }
@@ -79,23 +91,23 @@ public class BattleField {
     }
 
     // Проверка формы и целостности корабля
-    private boolean isValidShape(Point[] points) {
+    private boolean isValidShape(List<int[]> points) {
         int minX = 9, minY = 9;
         int maxX = 0, maxY = 0;
-        for (Point point : points) {
-            minX = Math.min(minX, point.getX());
-            minY = Math.min(minY, point.getY());
-            maxX = Math.max(maxX, point.getX());
-            maxY = Math.max(maxY, point.getY());
+        for (int[] point : points) {
+            minX = Math.min(minX, point[0]);
+            minY = Math.min(minY, point[1]);
+            maxX = Math.max(maxX, point[0]);
+            maxY = Math.max(maxY, point[1]);
         }
 
-        return minX == maxX && maxY - minY + 1 == points.length
-                || minY == maxY && maxX - minX + 1 == points.length;
+        return minX == maxX && maxY - minY + 1 == points.size()
+                || minY == maxY && maxX - minX + 1 == points.size();
     }
 
     // Возвращает количество N-палубных кораболей, необходимых для полноной комплектации
     public int getNeedShip(int deck) {
-        return ships.length - deck + 1 - getCountShip(deck);
+        return countShips.length - deck + 1 - getCountShip(deck);
     }
 
     // Возвращает значение клетки по заданным координатам
@@ -109,28 +121,41 @@ public class BattleField {
     }
 
     // Устанавливает ореол вокург корабля
-    public void setOreol(int x, int y) {
+    public void setOreol(Ship ship, Unit oreol) {
 
-        Point[] points = new Point[8];
-        points[0] = new Point(x - 1, y - 1);
-        points[1] = new Point(x, y - 1);
-        points[2] = new Point(x + 1, y - 1);
-        points[3] = new Point(x - 1, y);
-        points[4] = new Point(x + 1, y);
-        points[5] = new Point(x - 1, y + 1);
-        points[6] = new Point(x, y + 1);
-        points[7] = new Point(x + 1, y + 1);
+        for (int[] point : ship.getPoints()) {
+            List<int[]> points = new ArrayList<>();
+            points.add(new int[]{point[0] - 1, point[1] - 1});
+            points.add(new int[]{point[0], point[1] - 1});
+            points.add(new int[]{point[0] + 1, point[1] - 1});
+            points.add(new int[]{point[0] - 1, point[1]});
+            points.add(new int[]{point[0] + 1, point[1]});
+            points.add(new int[]{point[0] - 1, point[1] + 1});
+            points.add(new int[]{point[0], point[1] + 1});
+            points.add(new int[]{point[0] + 1, point[1] + 1});
 
-        for (Point point : points) {
-            if (point.getX() >= 0
-                    && point.getX() < 10
-                    && point.getY() >= 0
-                    && point.getY() < 10
-                    && getUnit(point.getX(), point.getY()) == Unit.EMPTY) {
-                setUnit(Unit.OREOL, point.getX(), point.getY());
+            for (int[] p : points) {
+                if (p[0] >= 0
+                        && p[0] < 10
+                        && p[1] >= 0
+                        && p[1] < 10
+                        && (getUnit(p[0], p[1]) == Unit.EMPTY || getUnit(p[0], p[1]) == Unit.OREOL)) {
+                    setUnit(oreol, p[0], p[1]);
+                }
             }
         }
+    }
 
+    // Возвращает корабль, найденный по координатам
+    public Optional<Ship> findShip(int x, int y) {
+
+        Optional<Ship> result = Optional.empty();
+        for (Ship ship : ships) {
+            if (ship.hasPoint(x, y)) {
+                result = Optional.of(ship);
+            }
+        }
+        return result;
     }
 
     // Выводит на экран два игровых поля для игрока 1 (открытое) и игрока 2 (скрытое)
@@ -154,4 +179,7 @@ public class BattleField {
 
     }
 
+    public List<Ship> getShips() {
+        return ships;
+    }
 }
